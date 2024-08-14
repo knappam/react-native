@@ -91,6 +91,15 @@ tasks.register("publishAllInsideNpmPackage") {
   dependsOn(":packages:react-native:ReactAndroid:hermes-engine:installArchives")
 }
 
+tasks.register("publishAllToMavenCodeArtifact") {
+  description = "Publish all the artifacts to be available inside a Maven Local repository on /tmp."
+  dependsOn(":packages:react-native:ReactAndroid:publishAllPublicationsToCodeArtifactRepository")
+  // We don't publish the external-artifacts to Maven Local as CircleCI is using it via workspace.
+  dependsOn(
+      ":packages:react-native:ReactAndroid:hermes-engine:publishAllPublicationsToCodeArtifactRepository")
+}
+
+
 tasks.register("publishAllToMavenTempLocal") {
   description = "Publish all the artifacts to be available inside a Maven Local repository on /tmp."
   dependsOn(":packages:react-native:ReactAndroid:publishAllPublicationsToMavenTempLocalRepository")
