@@ -9,7 +9,7 @@ plugins {
     id("maven-publish")
 }
 
-group = "com.facebook.react"
+group = "com.amazon.knappa"
 version = parent.publishing_version
 configurations.maybeCreate("default")
 

@@ -27,7 +27,7 @@ version =
       reactAndroidProperties.getProperty("VERSION_NAME")
     }
 
-group = "com.facebook.react"
+group = "com.amazon.knappa"
 
 val ndkPath by extra(System.getenv("ANDROID_NDK"))
 val ndkVersion by extra(System.getenv("ANDROID_NDK_VERSION"))
