@@ -750,18 +750,13 @@ function pbxprojUsesCocoaPods(xcodeprojPath /*: string */) /*: boolean */ {
   }
 }
 
-// A web link, because npm does not ship the __docs__ directories.
-const KEEPING_NON_RN_PODS_DOCS_URL =
-  'https://github.com/facebook/react-native/blob/main/packages/react-native/' +
-  'scripts/spm/__docs__/spm-scripts.md#keeping-non-rn-pods';
-
 function cocoaPodsIntegratedMessage(xcodeprojPath /*: string */) /*: string */ {
   return (
-    `${path.basename(xcodeprojPath)} is CocoaPods-integrated. If your ` +
-    'Podfile declares only React Native, re-run `spm add --deintegrate` ' +
-    '(runs `pod deintegrate` and moves the Podfile to Podfile.bak). If it ' +
-    'declares other pods, convert by hand as described in "Keeping non-RN ' +
-    `pods": ${KEEPING_NON_RN_PODS_DOCS_URL}`
+    `${path.basename(xcodeprojPath)} is CocoaPods-integrated. Re-run ` +
+    '`spm add --deintegrate`. It runs `pod deintegrate` and moves the Podfile ' +
+    'to Podfile.bak. Pods other than React Native are not installed while ' +
+    'the app uses SwiftPM, unless SwiftPM provides them. `spm deinit` ' +
+    'restores the Podfile.'
   );
 }
 
@@ -778,16 +773,29 @@ function podfileHasRnIntegration(appRoot /*: string */) /*: boolean */ {
   );
 }
 
-// True when the Podfile declares any explicit `pod '...'` or `pod('...')`
-// (third-party pods), at the start of a line or after a `;`.
-function podfileHasThirdPartyPods(appRoot /*: string */) /*: boolean */ {
+// The names of the pods the Podfile declares explicitly (`pod '...'` or
+// `pod('...')`), deduplicated, in order. React Native itself comes in through
+// use_react_native!, so every name here is a pod that is not part of it.
+function podfilePodNames(appRoot /*: string */) /*: Array<string> */ {
   const podfilePath = path.join(appRoot, 'Podfile');
   if (!fs.existsSync(podfilePath)) {
-    return false;
+    return [];
   }
-  return /^(?:[^#\n]*;)?\s*pod\s*\(?\s*['"]/m.test(
-    fs.readFileSync(podfilePath, 'utf8'),
-  );
+  const names /*: Set<string> */ = new Set();
+  for (const line of fs.readFileSync(podfilePath, 'utf8').split('\n')) {
+    // `#{` is Ruby string interpolation, not a comment.
+    for (const statement of line.split(/#(?!\{)/)[0].split(';')) {
+      const match = /^\s*pod\s*\(?\s*(['"])(.+?)\1/.exec(statement);
+      if (match != null) {
+        names.add(match[2]);
+      }
+    }
+  }
+  return [...names];
+}
+
+function podfileHasThirdPartyPods(appRoot /*: string */) /*: boolean */ {
+  return podfilePodNames(appRoot).length > 0;
 }
 
 // The zero-arg "fresh project" safe-gate: auto-`add --deintegrate` ONLY when it
@@ -1296,18 +1304,21 @@ async function main(argv /*:: ?: Array<string> */) /*: Promise<void> */ {
     return;
   }
 
-  if (args.deintegrate && podfileHasThirdPartyPods(appRoot)) {
-    logError(
-      'Your Podfile declares pods that are not part of React Native. They ' +
-        'would stop working under SwiftPM, so the conversion is refused. ' +
-        'Nothing was changed.',
-    );
-    process.exitCode = 1;
-    return;
-  }
   if (args.deintegrate && refuseToOverwritePodfileBackup(appRoot)) {
     process.exitCode = 1;
     return;
+  }
+  if (args.deintegrate) {
+    const podNames = podfilePodNames(appRoot);
+    if (podNames.length > 0) {
+      logError(
+        'Your Podfile declares pods that are not part of React Native: ' +
+          `${podNames.join(', ')}. CocoaPods will not install them while ` +
+          'the app uses SwiftPM, unless SwiftPM provides them. They are kept ' +
+          'in Podfile.bak, and `npx react-native spm deinit` restores the ' +
+          'Podfile.',
+      );
+    }
   }
 
   // Fail fast on a CocoaPods-integrated target BEFORE the (expensive) pipeline,
@@ -1581,6 +1592,7 @@ module.exports = {
   findInjectedXcodeproj,
   generateAutolinkingConfigOrFailClosed,
   parseArgs,
+  podfilePodNames,
   resolveAction,
   resolveAppIosDeploymentTarget,
   resolveConfigCommandToPin,

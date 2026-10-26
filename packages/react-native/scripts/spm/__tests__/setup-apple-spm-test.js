@@ -77,6 +77,7 @@ const {
   generateAutolinkingConfigOrFailClosed,
   main,
   parseArgs,
+  podfilePodNames,
   resolveAction,
   resolveAppIosDeploymentTarget,
   resolveConfigCommandToPin,
@@ -741,6 +742,60 @@ describe('shouldAutoDeintegrate', () => {
   });
 });
 
+describe('podfilePodNames', () => {
+  let tempDir;
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spm-pod-names-'));
+  });
+  afterEach(() => {
+    fs.rmSync(tempDir, {recursive: true, force: true});
+  });
+
+  function namesIn(lines) {
+    fs.writeFileSync(path.join(tempDir, 'Podfile'), lines.join('\n'));
+    return podfilePodNames(tempDir);
+  }
+
+  it('lists each declared pod once, in declaration order', () => {
+    expect(
+      namesIn([
+        "target 'MyApp' do",
+        '  use_react_native!',
+        "  pod 'A'",
+        "  pod('B', :path => 'x')",
+        '  target \'MyAppTests\' do; pod "C"; end',
+        "  pod 'A', :path => 'y'",
+        'end',
+      ]),
+    ).toEqual(['A', 'B', 'C']);
+  });
+
+  it('ignores commented-out pods and pod-like words', () => {
+    expect(
+      namesIn([
+        "# pod 'Commented'",
+        "  use_frameworks! # pod 'Trailing'",
+        "  use_frameworks!; # pod 'AfterSemicolon'",
+        "  podspec :path => '../MyLib.podspec'",
+        "  pods_root = 'Pods'",
+      ]),
+    ).toEqual([]);
+  });
+
+  it('keeps pods whose names use Ruby interpolation', () => {
+    expect(
+      namesIn([
+        '  pod "#{prefix}Core"',
+        '  pod "Foo#{suffix}", :path => \'x\' # comment',
+      ]),
+    ).toEqual(['#{prefix}Core', 'Foo#{suffix}']);
+  });
+
+  it('is empty without a Podfile', () => {
+    expect(podfilePodNames(tempDir)).toEqual([]);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // CocoaPods conversion is reversible: `--deintegrate` moves the Podfile aside
 // as Podfile.bak instead of editing it, and `deinit` moves it back.
@@ -774,9 +829,19 @@ describe('Podfile backup and restore', () => {
     'end',
     '',
   ].join('\n');
-  const PODFILE_WITH_THIRD_PARTY_POD = STOCK_PODFILE.replace(
+  // Shaped like packages/rn-tester/Podfile: local example pods, then a test
+  // pod in a nested target.
+  const PODFILE_WITH_THIRD_PARTY_PODS = STOCK_PODFILE.replace(
     '  config = use_native_modules!\n',
-    "  config = use_native_modules!\n  pod 'Foo'\n",
+    [
+      '  config = use_native_modules!',
+      "  pod 'ScreenshotManager', :path => 'NativeModuleExample'",
+      "  pod 'MyNativeView', :path => 'NativeComponentExample'",
+      "  target 'MyAppTests' do",
+      "    pod 'OCMock', '~> 3.9.1'",
+      '  end',
+      '',
+    ].join('\n'),
   );
 
   let appRoot;
@@ -828,9 +893,12 @@ describe('Podfile backup and restore', () => {
 
   function expectCocoaPodsAdvice() {
     expect(errors()).toContain('CocoaPods-integrated');
-    expect(errors()).toMatch(/only React Native[^\n]*`spm add --deintegrate`/);
-    expect(errors()).toContain('Keeping non-RN pods');
-    expect(errors()).not.toContain('non-RN pods are fine');
+    expect(errors()).toContain('`spm add --deintegrate`');
+    expect(errors()).toContain('Podfile.bak');
+    expect(errors()).toMatch(/other than React Native[^]*SwiftPM provides/);
+    expect(errors()).toContain('`spm deinit`');
+    expect(errors()).not.toContain('Keeping non-RN pods');
+    expect(errors()).not.toContain('https://');
   }
 
   function expectNoPipelineOutput(xcodeproj) {
@@ -881,26 +949,42 @@ describe('Podfile backup and restore', () => {
       expect(fs.readFileSync(backupPath, 'utf8')).toBe(olderBackup);
     });
 
-    it('refuses before any change when the Podfile has non-React-Native pods', async () => {
+    it('converts anyway and names the pods it will not install when the Podfile has non-React-Native pods', async () => {
+      mkXcodeproj(appRoot, 'MyApp.xcodeproj', {cocoapods: true});
+      fs.writeFileSync(podfilePath, PODFILE_WITH_THIRD_PARTY_PODS);
+
+      await runAdd('--deintegrate');
+
+      const warning = errors();
+      expect(warning).toContain('ScreenshotManager, MyNativeView, OCMock');
+      expect(warning).toContain('Podfile.bak');
+      expect(warning).toContain('spm deinit');
+      expect(warning).not.toMatch(/refused/i);
+      expect(mockPodCalls).toContainEqual(['deintegrate']);
+      expect(fs.existsSync(podfilePath)).toBe(false);
+      expect(fs.readFileSync(backupPath, 'utf8')).toBe(
+        PODFILE_WITH_THIRD_PARTY_PODS,
+      );
+      expect(fs.existsSync(path.join(appRoot, 'build'))).toBe(true);
+    });
+
+    it('does not auto-convert on the zero-arg path when the Podfile has non-React-Native pods', async () => {
       const xcodeproj = mkXcodeproj(appRoot, 'MyApp.xcodeproj', {
         cocoapods: true,
       });
-      const pbxprojPath = path.join(xcodeproj, 'project.pbxproj');
-      const pbxprojBefore = fs.readFileSync(pbxprojPath, 'utf8');
-      fs.writeFileSync(podfilePath, PODFILE_WITH_THIRD_PARTY_POD);
+      fs.writeFileSync(podfilePath, PODFILE_WITH_THIRD_PARTY_PODS);
+      gitInitAndCommit(appRoot);
       mockAutolinkingSourceDir = appRoot;
 
-      await main(['add', '--deintegrate']);
+      await main([]);
 
       expect(process.exitCode).toBe(1);
-      expect(errors()).toMatch(/pods?\b[^]*SwiftPM/i);
-      expect(errors()).toMatch(/stop working/i);
+      expect(errors()).toContain('CocoaPods-integrated');
       expectNoPipelineOutput(xcodeproj);
       expect(fs.readFileSync(podfilePath, 'utf8')).toBe(
-        PODFILE_WITH_THIRD_PARTY_POD,
+        PODFILE_WITH_THIRD_PARTY_PODS,
       );
       expect(fs.existsSync(backupPath)).toBe(false);
-      expect(fs.readFileSync(pbxprojPath, 'utf8')).toBe(pbxprojBefore);
     });
 
     it('refuses before any change when Podfile.bak already exists', async () => {
@@ -985,7 +1069,7 @@ describe('Podfile backup and restore', () => {
     const xcodeproj = mkXcodeproj(appRoot, 'MyApp.xcodeproj', {
       cocoapods: true,
     });
-    fs.writeFileSync(podfilePath, PODFILE_WITH_THIRD_PARTY_POD);
+    fs.writeFileSync(podfilePath, PODFILE_WITH_THIRD_PARTY_PODS);
 
     await runAdd();
 
