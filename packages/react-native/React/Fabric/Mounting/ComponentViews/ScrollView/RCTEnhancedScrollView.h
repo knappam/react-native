@@ -60,6 +60,14 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) BOOL inverted;
 
 /*
+ * The content inset before the correction across the scrollable axis: what the props and the content centering
+ * give. `contentInset` carries it less whatever UIKit adds across that axis for the safe area, which `ScrollView`
+ * already pads into the content.
+ */
+@property (nonatomic, assign) UIEdgeInsets baseContentInset;
+@property (nonatomic, assign) BOOL horizontal;
+
+/*
  * Makes `setContentOffset:` method no-op when given `block` is executed.
  * The block is being executed synchronously.
  */
