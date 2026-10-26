@@ -2,6 +2,15 @@ appId: ${APP_ID} # iOS: com.meta.RNTester.localDevelopment | Android: com.facebo
 ---
 - launchApp:
     stopApp: true
+# Android drops a deep link that arrives before RNTester is ready. iOS can
+# restore another screen on relaunch, so it doesn't wait for the home screen.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - extendedWaitUntil:
+          visible: 'Components'
+          timeout: 30000
 - openLink: ${EXAMPLE_URL}
 - runFlow:
     when:
