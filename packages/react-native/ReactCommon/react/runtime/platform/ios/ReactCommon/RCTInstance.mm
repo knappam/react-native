@@ -13,7 +13,6 @@
 #import <React/NSDataBigString.h>
 #import <React/RCTAssert.h>
 #import <React/RCTBridge+Inspector.h>
-#import <React/RCTBridge+Private.h>
 #import <React/RCTBridge.h>
 #import <React/RCTBridgeModule.h>
 #import <React/RCTBridgeModuleDecorator.h>
@@ -29,7 +28,6 @@
 #import <React/RCTEventDispatcherProtocol.h>
 #import <React/RCTLog.h>
 #import <React/RCTLogBox.h>
-#import <React/RCTModuleData.h>
 #import <React/RCTPerformanceLogger.h>
 #import <React/RCTRedBox.h>
 #import <React/RCTSurfacePresenter.h>
@@ -129,7 +127,9 @@ using namespace facebook::react;
     _bridgeModuleDecorator = [[RCTBridgeModuleDecorator alloc] initWithViewRegistry:[RCTViewRegistry new]
                                                                      moduleRegistry:moduleRegistry
                                                                       bundleManager:bundleManager
-                                                                  callableJSModules:[RCTCallableJSModules new]];
+                                                                  callableJSModules:[RCTCallableJSModules new]
+                                                                      launchOptions:launchOptions
+                                                                  performanceLogger:_performanceLogger];
     _devMenuConfigurationDecorator =
 #if RCT_DEV_MENU
         [[RCTDevMenuConfigurationDecorator alloc] initWithDevMenuConfiguration:devMenuConfiguration];
@@ -327,7 +327,6 @@ using namespace facebook::react;
   bridgeProxy.jsCallInvoker = jsCallInvoker;
   bridgeProxy.performanceLogger = _performanceLogger;
   _bridgeProxy = bridgeProxy;
-  [RCTBridge setCurrentBridge:(RCTBridge *)bridgeProxy];
 
   // Set up TurboModules
   _turboModuleManager = [[RCTTurboModuleManager alloc] initWithBridgeProxy:bridgeProxy
