@@ -89,24 +89,22 @@ const [
   'NativeTypeDiffingTypes.js.flow',
 );
 
-/* eslint-disable no-unused-vars */
 const [
   nativeModuleWithEventEmitterAliases,
-  _nativeModuleWithEventEmitterMethodParamLookup,
-  _nativeModuleWithEventEmitterMethodLookup,
+  ,
+  ,
   nativeModuleWithEventEmitterEmitterLookup,
 ] = getModule('native-module-with-eventemitter', 'NativeModule.js.flow');
 
 const [
   nativeModuleWithEventEmitterChangesAliases,
-  _nativeModuleWithEventEmitterChangesMethodParamLookup,
-  _nativeModuleWithEventEmitterChangesMethodLookup,
+  ,
+  ,
   nativeModuleWithEventEmitterChangesEmitterLookup,
 ] = getModule(
   'native-module-with-eventemitter-changes',
   'NativeModule.js.flow',
 );
-/* eslint-enable no-unused-vars */
 
 const [
   nativeComponentAllTypesPropLookup,
