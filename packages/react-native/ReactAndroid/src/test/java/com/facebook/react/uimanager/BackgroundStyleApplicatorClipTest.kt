@@ -138,7 +138,11 @@ class BackgroundStyleApplicatorClipTest {
   @Test
   fun `a bordered ReactViewGroup keeps the canvas clip, with no layer`() {
     val view = ReactViewGroup(context)
-    view.setBorderRadius(16f)
+    BackgroundStyleApplicator.setBorderRadius(
+        view,
+        BorderRadiusProp.BORDER_RADIUS,
+        LengthPercentage(16f, LengthPercentageType.POINT),
+    )
     view.setBorderWidth(8, 2f)
     view.layout(0, 0, 200, 200)
     view.background.setBounds(0, 0, 200, 200)
@@ -170,7 +174,11 @@ class BackgroundStyleApplicatorClipTest {
   @Test
   fun `ReactViewGroup switches the outline clip with overflow`() {
     val view = ReactViewGroup(context)
-    view.setBorderRadius(16f)
+    BackgroundStyleApplicator.setBorderRadius(
+        view,
+        BorderRadiusProp.BORDER_RADIUS,
+        LengthPercentage(16f, LengthPercentageType.POINT),
+    )
     view.layout(0, 0, 200, 200)
     view.background.setBounds(0, 0, 200, 200)
 
