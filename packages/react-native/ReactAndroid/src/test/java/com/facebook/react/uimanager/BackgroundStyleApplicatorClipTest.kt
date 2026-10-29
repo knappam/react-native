@@ -13,6 +13,7 @@ import android.graphics.Outline
 import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.drawable.ColorDrawable
+import android.os.Build
 import android.view.View
 import android.view.ViewOutlineProvider
 import com.facebook.react.R
@@ -21,6 +22,7 @@ import com.facebook.react.uimanager.style.BorderRadiusProp
 import com.facebook.react.uimanager.style.LogicalEdge
 import com.facebook.react.views.view.ReactViewGroup
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,22 +36,33 @@ import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.util.ReflectionHelpers
 
 /**
  * Tests for the anti-aliased clips [BackgroundStyleApplicator.updatePaddingBoxClip] uses on API
- * 28-29
+ * 28-29.
+ *
+ * The clip choice depends only on `Build.VERSION.SDK_INT`, so the tests set it rather than running
+ * in older Robolectric SDKs: each extra SDK loads its own android-all runtime into the test JVM.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28], qualifiers = "xhdpi")
+@Config(qualifiers = "xhdpi")
 class BackgroundStyleApplicatorClipTest {
 
   private lateinit var context: Context
+  private val sdkInt = Build.VERSION.SDK_INT
 
   @Before
   fun setUp() {
     ReactNativeFeatureFlagsForTests.setUp()
     context = RuntimeEnvironment.getApplication()
     DisplayMetricsHolder.setScreenDisplayMetrics(context.resources.displayMetrics)
+    setSdkInt(Build.VERSION_CODES.P)
+  }
+
+  @After
+  fun tearDown() {
+    setSdkInt(sdkInt)
   }
 
   @Test
@@ -192,8 +205,8 @@ class BackgroundStyleApplicatorClipTest {
   }
 
   @Test
-  @Config(sdk = [29])
   fun `API 29 clips with the outline too`() {
+    setSdkInt(Build.VERSION_CODES.Q)
     val view = roundedView()
     val canvas = hardwareCanvas()
 
@@ -204,8 +217,8 @@ class BackgroundStyleApplicatorClipTest {
   }
 
   @Test
-  @Config(sdk = [33])
   fun `a percentage radius resolves against the bounds in dp`() {
+    setSdkInt(sdkInt)
     val view = View(context)
     BackgroundStyleApplicator.setBorderRadius(
         view,
@@ -241,14 +254,14 @@ class BackgroundStyleApplicatorClipTest {
   }
 
   @Test
-  @Config(sdk = [27])
   fun `API 27 keeps the canvas clip`() {
+    setSdkInt(Build.VERSION_CODES.O_MR1)
     assertCanvasClip()
   }
 
   @Test
-  @Config(sdk = [30])
   fun `anti-aliased clipPath on API 30 keeps the canvas clip`() {
+    setSdkInt(Build.VERSION_CODES.R)
     assertCanvasClip()
   }
 
@@ -272,6 +285,10 @@ class BackgroundStyleApplicatorClipTest {
     view.layout(0, 0, 200, 200)
     view.background.setBounds(0, 0, 200, 200)
     return view
+  }
+
+  private fun setSdkInt(sdk: Int) {
+    ReflectionHelpers.setStaticField(Build.VERSION::class.java, "SDK_INT", sdk)
   }
 
   private fun hardwareCanvas(): Canvas {
